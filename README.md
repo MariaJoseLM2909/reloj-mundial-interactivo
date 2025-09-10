@@ -1,3 +1,5 @@
+Muestra la hora actual en varias ciudades del mundo.
+
 Funcionalidades:
 Seleccionar ciudades desde un menú desplegable.
 Mostrar hora en tiempo real con setInterval.
