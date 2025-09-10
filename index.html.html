@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Reloj Mundial Interactivo</title>
+  <style>
+    :root{
+      --celeste-50:#f0f8ff; --celeste-400:#8ecbff; --celeste-600:#3198f0; --ink:#06324a; --muted:#4a6b86;
+      --card:#ffffff; --radius:12px; --shadow: 0 8px 24px rgba(13, 63, 98, .08);
+    }
+    *{box-sizing:border-box}
+    body{
+      font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      margin:0;
+      background: url('https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/World_map_-_low_resolution.svg/2000px-World_map_-_low_resolution.svg.png') no-repeat center center fixed;
+      background-size: cover;
+      color:var(--ink);
+      padding:28px;
+    }
+    .wrap{max-width:1000px; margin:0 auto; background:rgba(255,255,255,0.8); border-radius:16px; padding:20px;}
+    header{display:flex; align-items:center; gap:12px; margin-bottom:18px}
+    .logo{width:46px;height:46px;border-radius:10px;background:linear-gradient(135deg,var(--celeste-600),var(--celeste-400));display:grid;place-items:center;color:white;font-weight:700}
+    h1{margin:0;font-size:1.25rem}
+    .muted{color:var(--muted); font-size:0.95rem}
+
+    .controls{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:18px 0}
+    select,input,button{padding:10px 12px;border-radius:10px;border:1px solid rgba(50,120,200,.12);outline:none}
+    .btn{background:linear-gradient(135deg,var(--celeste-600),var(--celeste-400));color:white;border:none;cursor:pointer;font-weight:600}
+    .btn.ghost{background:transparent;color:var(--celeste-600);border:1px solid rgba(50,120,200,.12)}
+
+    .grid{display:grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap:14px}
+    .card{background:var(--card); border-radius:var(--radius); padding:14px; box-shadow:var(--shadow); border:1px solid rgba(10,50,100,.04)}
+    .city{display:flex; justify-content:space-between; align-items:center}
+    .city h2{margin:0;font-size:1rem}
+    .time{font-size:1.6rem;font-weight:700; margin-top:8px}
+    .date{font-size:0.9rem;color:var(--muted); margin-top:6px}
+    .small{font-size:0.82rem;color:var(--muted)}
+    .actions{display:flex; gap:6px; margin-top:10px}
+    .actions button{padding:8px 10px;border-radius:8px}
+
+    footer{margin-top:20px;text-align:center;color:var(--muted)}
+
+    @media (max-width:480px){ .time{font-size:1.3rem} }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo">🌍</div>
+      <div>
+        <h1>Reloj Mundial Interactivo</h1>
+        <div class="muted">Seleccioná ciudades, mirá la hora en tiempo real y alterná entre 12h / 24h.</div>
+      </div>
+    </header>
+
+    <div class="controls" role="region" aria-label="Controles de reloj">
+      <label for="tzSelect" class="sr-only">Zona horaria</label>
+      <select id="tzSelect">
+        <option value="America/Argentina/Mendoza">Mendoza — Argentina (America/Argentina/Mendoza)</option>
+        <option value="America/Argentina/Buenos_Aires">Buenos Aires — Argentina (America/Argentina/Buenos_Aires)</option>
+        <option value="America/New_York">Nueva York — USA (America/New_York)</option>
+        <option value="America/Los_Angeles">Los Ángeles — USA (America/Los_Angeles)</option>
+        <option value="Europe/London">Londres — Reino Unido (Europe/London)</option>
+        <option value="Europe/Paris">París — Francia (Europe/Paris)</option>
+        <option value="Europe/Madrid">Madrid — España (Europe/Madrid)</option>
+        <option value="Asia/Tokyo">Tokio — Japón (Asia/Tokyo)</option>
+        <option value="Asia/Shanghai">Shanghái — China (Asia/Shanghai)</option>
+        <option value="Australia/Sydney">Sídney — Australia (Australia/Sydney)</option>
+        <option value="UTC">UTC</option>
+      </select>
+
+      <button id="btnAdd" class="btn">Agregar ciudad</button>
+
+      <div style="margin-left:auto; display:flex; gap:8px; align-items:center">
+        <label class="small">Formato</label>
+        <button id="toggleFormat" class="btn ghost">24h</button>
+      </div>
+    </div>
+
+    <section>
+      <div id="grid" class="grid" aria-live="polite"></div>
+    </section>
+
+    <footer>Hecho por <strong>Maria José Lucero</strong></footer>
+  </div>
+
+<script>
+(() => {
+  const defaultZones = ['America/Argentina/Mendoza', 'Europe/London', 'America/New_York', 'Asia/Tokyo'];
+  const keyZones = 'rw_zones_v1';
+  const keyFormat = 'rw_format_24_v1';
+
+  const $ = sel => document.querySelector(sel);
+  const grid = $('#grid');
+  const tzSelect = $('#tzSelect');
+  const btnAdd = $('#btnAdd');
+  const btnFormat = $('#toggleFormat');
+
+  let zones = loadZones();
+  let use24 = loadFormat();
+
+  function saveZones(){ localStorage.setItem(keyZones, JSON.stringify(zones)); }
+  function loadZones(){ try{ const v = JSON.parse(localStorage.getItem(keyZones)); return Array.isArray(v) && v.length ? v : defaultZones.slice(); }catch(e){ return defaultZones.slice(); } }
+  function saveFormat(){ localStorage.setItem(keyFormat, JSON.stringify(use24)); }
+  function loadFormat(){ try{ const v = JSON.parse(localStorage.getItem(keyFormat)); return typeof v === 'boolean' ? v : true; }catch(e){ return true; } }
+
+  function getDisplayName(timeZone){
+    try{
+      const dtf = new Intl.DateTimeFormat(undefined, {timeZone, weekday:'short', month:'short', day:'numeric'});
+      return timeZone.replace('_', ' ').split('/').slice(-1).join(', ');
+    }catch(e){ return timeZone; }
+  }
+
+  function getTimeParts(timeZone){
+    const now = new Date();
+    const opts = {
+      timeZone,
+      hour: 'numeric', minute: 'numeric', second: 'numeric', hour12: !use24,
+      year:'numeric', month:'long', day:'numeric', weekday:'short', timeZoneName:'short'
+    };
+    const dtf = new Intl.DateTimeFormat(undefined, opts);
+    const parts = dtf.formatToParts(now).reduce((acc,p)=>{ acc[p.type]=p.value; return acc; }, {});
+    return { parts };
+  }
+
+  function render(){
+    grid.innerHTML = '';
+    zones.forEach(tz => {
+      const { parts } = getTimeParts(tz);
+      const card = document.createElement('article'); card.className='card';
+      card.innerHTML = `
+        <div class="city">
+          <h2>${escapeHtml(getDisplayName(tz))}</h2>
+          <div class="small">${escapeHtml(tz)}</div>
+        </div>
+        <div class="time">${escapeHtml(parts.hour || '')}:${escapeHtml(parts.minute || '')}:${escapeHtml(parts.second || '')} ${use24 ? '' : (parts.dayPeriod || '')}</div>
+        <div class="date">${escapeHtml(parts.weekday || '')} ${escapeHtml(parts.day || '')} ${escapeHtml(parts.month || '')} ${escapeHtml(parts.year || '')} • ${escapeHtml(parts.timeZoneName || '')}</div>
+        <div class="actions">
+          <button class="btn ghost" data-act="refresh" data-tz="${tz}">Actualizar</button>
+          <button class="btn" data-act="remove" data-tz="${tz}">Quitar</button>
+        </div>
+      `;
+      grid.appendChild(card);
+    });
+    btnFormat.textContent = use24 ? '24h' : '12h';
+    saveZones(); saveFormat();
+  }
+
+  function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
+
+  btnAdd.addEventListener('click', ()=>{
+    const tz = tzSelect.value;
+    if(!zones.includes(tz)){
+      zones.push(tz); render();
+    }else{
+      const idx = zones.indexOf(tz);
+      const node = grid.children[idx]; if(node) node.animate([{transform:'scale(1.02)'},{transform:'scale(1)'}],{duration:200});
+    }
+  });
+
+  btnFormat.addEventListener('click', ()=>{ use24 = !use24; render(); });
+
+  grid.addEventListener('click', (e)=>{
+    const btn = e.target.closest('button'); if(!btn) return;
+    const act = btn.dataset.act; const tz = btn.dataset.tz;
+    if(act === 'remove'){
+      zones = zones.filter(z=>z!==tz); render();
+    }
+    if(act === 'refresh'){
+      render();
+    }
+  });
+
+  render();
+  setInterval(render, 1000);
+})();
+</script>
+</body>
+</html>
